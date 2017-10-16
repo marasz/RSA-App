@@ -1,6 +1,5 @@
 package com.company;
 
-import java.io.*;
 import java.math.BigInteger;
 import java.util.ArrayList;
 
@@ -11,12 +10,19 @@ public class RSA {
     private BigInteger phyOfN;
     private BigInteger e;
     private BigInteger d;
+    private boolean showOutput;
 
-    public RSA() {
-        calculateN();
-        calculatePhyOfN();
-        calculateE();
-        calculateD();
+    public RSA(boolean showOutput) {
+
+        this.showOutput = showOutput;
+        this.p = PrimeGenerator.getRandomPrime();
+        this.q = PrimeGenerator.getRandomPrime();
+        this.n = calculateN(this.p, this.q);
+        this.phyOfN = calculatePhyOfN(this.p, this.q);
+        this.e = calculateE(this.n, this.phyOfN);
+        this.d = calculateD(this.e, this.phyOfN);
+
+        if(showOutput)System.out.println(toString());
     }
 
     public String getPrivateKey() {
@@ -28,53 +34,30 @@ public class RSA {
     }
 
     public void exportPrivateKey(String path) {
-        export(getPrivateKey(), path);
+        FileHandler.export(getPrivateKey(), path);
     }
 
     public void exportPublicKey(String path) {
-        export(getPublicKey(), path);
+        FileHandler.export(getPublicKey(), path);
     }
 
-    public void export(String text, String path){
-        File file = new File(path);
-        BufferedWriter writer = null;
-        try {
-            writer = new BufferedWriter(new FileWriter(file));
-            writer.write(text);
-        } catch (IOException e1) {
-            e1.printStackTrace();
-        } finally {
-            try {
-                writer.close();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        }
+    private BigInteger calculateN(BigInteger p, BigInteger q) {
+        return p.multiply(q);
     }
 
-    private void calculateN() {
-        p = PrimeGenerator.getRandomPrime();
-        q = PrimeGenerator.getRandomPrime();
-        if (p.equals(q)) {
-            calculateN();
-            return;
-        }
-
-        n = p.multiply(q);
-    }
-
-    private void calculatePhyOfN() {
+    private BigInteger calculatePhyOfN(BigInteger p, BigInteger q) {
         BigInteger one = new BigInteger("1");
-        phyOfN = p.subtract(one).multiply(q.subtract(one));
+        return p.subtract(one).multiply(q.subtract(one));
     }
 
-    private void calculateE() {
-        e = n.subtract(phyOfN);
+    private BigInteger calculateE(BigInteger n, BigInteger phyOfN) {
+        return n.subtract(phyOfN);
     }
 
-    private void calculateD() {
-        BigInteger a = this.e;
-        BigInteger b = this.phyOfN;
+    private BigInteger calculateD(BigInteger e, BigInteger phyOfN) {
+        if(showOutput)System.out.println("euclidean algorithm: ");
+        BigInteger a = e;
+        BigInteger b = phyOfN;
         BigInteger x0 = new BigInteger("1");
         BigInteger y0 = new BigInteger("0");
         BigInteger x1 = new BigInteger("0");
@@ -88,14 +71,16 @@ public class RSA {
             q = a.divide(b);
             r = a.mod(b);
 
-            System.out.print(a + " | ");
-            System.out.print(b + " | ");
-            System.out.print(x0 + " | ");
-            System.out.print(y0 + " | ");
-            System.out.print(x1 + " | ");
-            System.out.print(y1 + " | ");
-            System.out.print(q + " | ");
-            System.out.println(r + " | ");
+            if(showOutput) {
+                System.out.print(a + " | ");
+                System.out.print(b + " | ");
+                System.out.print(x0 + " | ");
+                System.out.print(y0 + " | ");
+                System.out.print(x1 + " | ");
+                System.out.print(y1 + " | ");
+                System.out.print(q + " | ");
+                System.out.println(r + " | ");
+            }
 
             a = b;
             b = r;
@@ -110,11 +95,18 @@ public class RSA {
 
         }
 
-        if (x0.compareTo(BigInteger.ZERO) < 0) {
-            x0 = x0.mod(this.n);
+        if(showOutput) {
+            System.out.print(a + " | ");
+            System.out.print(b + " | ");
+            System.out.print(x0 + " | ");
+            System.out.println(y0 + " | ");
         }
 
-        this.d = x0;
+        if (x0.compareTo(BigInteger.ZERO) < 0) {
+            x0 = x0.add(phyOfN);
+        }
+
+        return x0;
     }
 
     public String toString() {
@@ -126,83 +118,4 @@ public class RSA {
         toString += "\nd: " + this.d;
         return toString;
     }
-
-    public void encryptFileToFile(String from, String to){
-        export(encryptFile(from), to);
-    }
-
-    public String encryptFile(String path) {
-        String text = importText(path);
-        return encrypt(text);
-
-    }
-
-    private String importText(String path) {
-        BufferedReader br = null;
-        try {
-            br = new BufferedReader(new InputStreamReader(new FileInputStream(path)));
-        } catch (FileNotFoundException e1) {
-            e1.printStackTrace();
-        }
-        String text = "";
-        try {
-            String line;
-
-            try {
-                while ((line = br.readLine()) != null) {
-                    text += line;
-                }
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        } finally {
-            try {
-                br.close();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        }
-        return text;
-    }
-
-    private String encrypt(String text) {
-        char[] ascii = text.toCharArray();
-        ArrayList<BigInteger> encryptedCharacters = new ArrayList<>();
-
-        for (char character : ascii) {
-            encryptedCharacters.add(encryptCharacter(character));
-        }
-
-        String encrypted = "";
-        for (BigInteger value : encryptedCharacters){
-            encrypted += value.toString() + ",";
-        }
-
-        return encrypted;
-    }
-
-    private BigInteger encryptCharacter(char character) {
-        BigInteger k = new BigInteger("" + (int) character);
-        BigInteger h = new BigInteger("1");
-
-        int i = this.e.bitLength() - 1;
-        String binary = e.toString(2);
-        char[] b = binary.toCharArray();
-
-        while (i >= 0) {
-
-            System.out.print(i + " ");
-            System.out.print(h + " ");
-            System.out.println(k);
-
-            if (("" + b[i]).equals("1")) {
-                h = (h.multiply(k)).mod(this.d);
-            }
-
-            k = (k.multiply(k)).mod(this.d);
-            i--;
-        }
-        return h;
-    }
-
 }
